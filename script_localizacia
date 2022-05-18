@@ -1,0 +1,105 @@
+#!/bin/bash
+
+
+isEmpty=$(hdfs dfs -count /user/hive/warehouse/pgw.db/pgw_oracle/ | awk '{print $2}')
+if [[ $isEmpty -eq 0 ]]; then
+    echo "Given Path is empty"
+else
+
+impala-shell -q ' invalidate metadata pgw.pgw_oracle ;  invalidate metadata pgw.pgw_in ; invalidate metadata pgw.pgw_out1 ;  invalidate metadata pgw.pgw_test2 ;
+insert into pgw.pgw_out1
+select
+pgw_in.numrec,
+pgw_in.datavolumefbcdownlink,
+pgw_in.datavolumefbcuplink,
+pgw_in.duration,
+pgw_in.pgwaddress,
+pgw_in.servedimeisv,
+pgw_in.servedimsi,
+pgw_in.servedmsisdn,
+pgw_in.timeoffirstusage,
+pgw_in.timeoflastusage,
+pgw_in.userlocationinformation,
+case 
+when substr(pgw_in.userlocationinformation,1,1)="0"
+then 
+case 
+when length(pgw_in.userlocationinformation)=16 
+then substr(pgw_in.userlocationinformation,15,1)
+else
+case 
+when length(pgw_in.userlocationinformation)=17 
+then substr(pgw_in.userlocationinformation,15,2)
+else
+case 
+when length(pgw_in.userlocationinformation)=18 
+then substr(pgw_in.userlocationinformation,15,3)
+else 
+case 
+when length(pgw_in.userlocationinformation)=19
+then substr(pgw_in.userlocationinformation,15,4)
+else 
+case 
+when length(pgw_in.userlocationinformation)=20
+then substr(pgw_in.userlocationinformation,15,5)
+else 
+case 
+when length(pgw_in.userlocationinformation)=21
+then substr(pgw_in.userlocationinformation,15,6)
+end end end end end end
+else 
+case when substr(pgw_in.userlocationinformation,15,5)="21232"
+then regexp_replace(substr(pgw_in.userlocationinformation,21,6),"[^[:digit:]]","")
+else
+case when substr(pgw_in.userlocationinformation,14,5)="21232"
+then regexp_replace(substr(pgw_in.userlocationinformation,20,6),"[^[:digit:]]","")
+else
+case when substr(pgw_in.userlocationinformation,13,5)="21232"
+then regexp_replace(substr(pgw_in.userlocationinformation,19,6),"[^[:digit:]]","")
+else 
+case when substr(pgw_in.userlocationinformation,12,5)="21232"
+then regexp_replace(substr(pgw_in.userlocationinformation,18,6),"[^[:digit:]]","")
+else 
+case when substr(pgw_in.userlocationinformation,11,5)="21232"
+then regexp_replace(substr(pgw_in.userlocationinformation,17,6),"[^[:digit:]]","")
+else 
+case when substr(pgw_in.userlocationinformation,15,5)="25027"
+then regexp_replace(substr(pgw_in.userlocationinformation,21,6),"[^[:digit:]]","")
+else
+case when substr(pgw_in.userlocationinformation,14,5)="25027"
+then regexp_replace(substr(pgw_in.userlocationinformation,20,6),"[^[:digit:]]","")
+else
+case when substr(pgw_in.userlocationinformation,13,5)="25027"
+then regexp_replace(substr(pgw_in.userlocationinformation,19,6),"[^[:digit:]]","")
+else 
+case when substr(pgw_in.userlocationinformation,12,5)="25027"
+then regexp_replace(substr(pgw_in.userlocationinformation,18,6),"[^[:digit:]]","")
+else 
+case when substr(pgw_in.userlocationinformation,11,5)="25027"
+then regexp_replace(substr(pgw_in.userlocationinformation,17,6),"[^[:digit:]]","")
+end end end end end end end end end end end cell_id,
+pgw_in.servedpdp_pdnaddress,
+pgw_oracle.id
+from 
+pgw.pgw_test2 pgw_in,
+pgw.pgw_oracle 
+where 
+(((cast(unix_timestamp(substr(pgw_in.timeoffirstusage,2,9),"yyyy-M-dd") as timestamp)>=pgw_oracle.firstdatetime 
+and cast(unix_timestamp(substr(pgw_in.timeoffirstusage,2,9),"yyyy-M-dd") as timestamp)<=pgw_oracle.seconddatetime)
+or
+(cast(unix_timestamp(substr(pgw_in.timeoffirstusage,2,10),"yyyy-MM-dd") as timestamp)>=pgw_oracle.firstdatetime 
+and cast(unix_timestamp(substr(pgw_in.timeoffirstusage,2,10),"yyyy-MM-dd") as timestamp)<=pgw_oracle.seconddatetime ))
+and (( pgw_in.servedimsi=pgw_oracle.servedimsi and pgw_in.servedimeisv=pgw_oracle.servedimeisv and pgw_in.servedmsisdn=pgw_oracle.servedmsisdn)
+or ( pgw_oracle.servedimeisv="null" and pgw_in.servedimsi=pgw_oracle.servedimsi and pgw_oracle.servedmsisdn=pgw_in.servedmsisdn)
+or ( pgw_oracle.servedimeisv=pgw_in.servedimeisv and pgw_oracle.servedimsi="null" and pgw_oracle.servedmsisdn=pgw_in.servedmsisdn)
+or ( pgw_oracle.servedimsi="null" and pgw_oracle.servedimeisv="null" and pgw_oracle.servedmsisdn=pgw_in.servedmsisdn ))) ; '
+
+impala-shell -q 'TRUNCATE table pgw.pgw_oracle'
+
+isEmpty1=$(hdfs dfs -count /user/hive/warehouse/pgw.db/pgw_out1/ | awk '{print $2}')
+if [[ $isEmpty1 -eq 0 ]]; then
+    echo "Given Path is empty" | hadoop fs -put - /user/progr/local_out/error.log;
+else
+   echo "Given Path is not empty" | hadoop fs -put - /user/progr/local_out/success.log;
+fi
+fi
